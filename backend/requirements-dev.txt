@@ -1,0 +1,7 @@
+# Development and CI tooling, on top of the runtime dependencies.
+-r requirements.txt
+
+pytest==9.1.1
+httpx2==2.13.1  # transport required by FastAPI's TestClient
+ruff==0.16.9
+mypy==2.3.1

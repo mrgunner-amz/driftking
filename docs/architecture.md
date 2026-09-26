@@ -1,110 +1,218 @@
 # Architecture
 
-> Status: **planned**. Nothing below the scaffolding layer is implemented yet.
-> This document describes the shape we are building toward, so that the
-> scaffolding stays clean enough to grow into it.
+> **Status: planned.** Only the scaffolding (a FastAPI service with
+> `GET /health` and a static Next.js page) exists today. This document
+> describes the architecture we intend to build, so that early decisions stay
+> compatible with it. Nothing below is a claim about implemented behavior.
 
-## Pipeline
+## Overview
 
 ```
-Terraform plan
-    ↓
-terraform show -json
-    ↓
-Change Interpreter
-    ↓
-Infrastructure Change Model
-    ↓
-Before / After Graph
-    ↓
-Animation
+terraform plan -out=tfplan               (user's environment)
+          │
+          ▼
+terraform show -json tfplan              (user's environment)
+          │
+══════════╪═══════════════════════════════  DriftKing boundary
+          ▼
+┌─────────────────────────────┐
+│ 1. Terraform Input          │  backend
+├─────────────────────────────┤
+│ 2. Change Interpreter       │  backend
+├─────────────────────────────┤
+│ 3. Infrastructure Change    │  backend   ◄── the frontend's only contract
+│    Model                    │
+├─────────────────────────────┤
+│ 4. Change Neighborhood      │  backend
+├─────────────────────────────┤
+│ 5. Visualization            │  backend: graphs + animation events
+│                             │  frontend: rendering
+└─────────────────────────────┘
+          ┆
+┌─────────────────────────────┐
+│ 6. AI Interpretation        │  future, optional, never authoritative
+└─────────────────────────────┘
 ```
 
-Each stage is a pure transformation of the stage above it. That matters: it
-keeps every layer independently testable from fixture files, with no Terraform
-binary, cloud credentials or network access in the test path.
+Layers 1–5 are deterministic transformations. Each consumes the output of the
+layer above it and can be tested in isolation from fixture files, with no
+Terraform binary, cloud credentials or network access in the test path.
 
-### 1. Terraform plan
+## Guiding principle
 
-The user runs `terraform plan -out=plan.tfplan` in their own environment.
-DriftKing never runs Terraform, never touches state, and never holds cloud
-credentials. Terraform remains the source of truth.
+**Terraform remains the source of truth.** DriftKing visualizes Terraform's
+planned transition. It does not re-derive, second-guess or reconcile that plan,
+and it never runs Terraform itself. If DriftKing and Terraform ever disagree,
+DriftKing is wrong.
 
-### 2. `terraform show -json`
+## Layers
 
-The user converts the binary plan to Terraform's documented JSON plan
-representation:
+### 1. Terraform Input
+
+The user runs, in their own environment:
 
 ```bash
-terraform show -json plan.tfplan > plan.json
+terraform plan -out=tfplan
+terraform show -json tfplan > plan.json
 ```
 
-That JSON is DriftKing's only input. Consuming a stable, documented format —
-rather than scraping human-readable plan text — is what makes the rest of the
-pipeline tractable.
+`plan.json` — Terraform's documented
+[JSON output format](https://developer.hashicorp.com/terraform/internals/json-format) —
+is DriftKing's only input. Consuming the structured, versioned format rather
+than scraping human-readable plan text is what makes the rest of the pipeline
+tractable.
 
-Sample plan JSON for development and tests lives in [`fixtures/`](../fixtures).
+Responsibilities:
 
-### 3. Change Interpreter
+- Accept plan JSON and validate that it is structurally a plan.
+- Check `format_version` and fail explicitly on versions we do not understand,
+  rather than guessing.
+- Parse into typed (Pydantic) structures that mirror Terraform's schema.
 
-Parses and validates the plan JSON into typed structures, then interprets it:
+This layer knows about Terraform's schema and nothing else.
 
-- Reads `resource_changes[]` and classifies each `change.actions` entry
-  (`no-op`, `create`, `update`, `delete`, `replace`).
-- Distinguishes a replace from an in-place update, and identifies the
-  attribute that forces it.
-- Resolves `unknown_after_apply` values into a form the UI can render honestly
-  rather than pretending to know them.
-- Extracts resource addresses, module paths, provider and type.
+### 2. Change Interpreter
 
-This layer is deliberately dumb about *meaning*: it normalizes, it does not
-rank or explain.
+Converts Terraform's representation into DriftKing's. This is the **only**
+layer that should know both vocabularies.
 
-### 4. Infrastructure Change Model
+Expected responsibilities:
 
-DriftKing's own internal representation, independent of Terraform's schema.
-Roughly: a set of resources, each with a before state, an after state, a
-change kind, and edges to the resources it depends on.
+- Map `resource_changes[].change.actions` to lifecycle actions. Terraform
+  expresses a replacement as an ordered pair of actions
+  (`["delete", "create"]` or `["create", "delete"]`); DriftKing should
+  represent that as a single *replace* of one resource, not two unrelated
+  events.
+- Surface *why* a replacement happens (`replace_paths`) and the attribute-level
+  differences between `before` and `after`.
+- Represent values Terraform does not know yet (`after_unknown`) honestly, as
+  unknown — never as empty or null.
+- Respect sensitivity markers (`before_sensitive` / `after_sensitive`) so that
+  sensitive values are never forwarded to the frontend.
+- Extract relationships from the plan's `configuration` section (references
+  and `depends_on`). How complete those relationships can be from plan JSON
+  alone is an open question for the next phase.
 
-Keeping this separate from the Terraform JSON is the central design decision.
-It gives us one place to add blast-radius scoring, severity, and grouping, and
-it leaves room to support other plan sources later without rewriting the UI.
+### 3. Infrastructure Change Model
 
-### 5. Before / After Graph
+DriftKing's own typed representation of an infrastructure transition. It is
+the contract between the backend pipeline and everything downstream, including
+the frontend.
 
-Two graph snapshots derived from the change model — infrastructure as it is,
-and as it will be — plus the correspondence between their nodes. Layout is
-computed on top of this so that unchanged resources stay put between the two
-snapshots and changed ones are the things that move.
+Expected to represent:
 
-### 6. Animation
+| Concept           | Notes                                                                |
+| ----------------- | -------------------------------------------------------------------- |
+| Resources         | Every resource relevant to the change                                |
+| Resource identity | Stable across before/after — see constraint D                        |
+| Resource type     | e.g. `aws_instance`, plus provider and module path                   |
+| Lifecycle action  | created, destroyed, updated, replaced, unchanged                     |
+| Before state      | Attribute values prior to the change (absent for creates)            |
+| After state       | Attribute values after the change (absent for deletes; may be unknown) |
+| Relationships     | Directed edges between resources, with their own before/after status |
+| Change metadata   | e.g. which attributes force replacement, sensitivity, drift vs. plan |
 
-The frontend renders the transition between the two graph snapshots: nodes
-appearing, being removed, being replaced, or changing in place. The goal is
-that a reviewer sees the destructive change before they read a single line of
-the plan.
+**Not implemented yet.** The concrete schema will be designed in the next
+phase against real plan JSON, not guessed at here.
 
-## Component layout
+### 4. Change Neighborhood
 
-| Component  | Stack                                   | Responsibility                                   |
-| ---------- | --------------------------------------- | ------------------------------------------------ |
-| `backend/` | Python 3.12+, FastAPI, Pydantic         | Stages 3–5: parse, interpret, model, build graphs |
-| `frontend/`| Next.js, TypeScript, React, Tailwind    | Stage 6: render and animate the transition        |
+Real infrastructure can contain thousands of resources; a plan usually touches
+a handful. Rendering everything buries the change.
 
-The backend exposes JSON over HTTP; the frontend is a pure consumer of that
-API. Today the only endpoint is `GET /health`.
+The Change Neighborhood selects what deserves to be on screen:
 
-## Non-goals
+```
+changed resources
+  + relevant relationships
+  + enough surrounding context to make the change legible
+```
 
-- **Replacing Terraform.** DriftKing visualizes and explains a transition
-  Terraform has already planned.
-- **Running Terraform.** No Terraform binary, no state access, no cloud
-  credentials.
-- **Applying changes.** DriftKing is read-only by design.
+For the example of adding `API-03` behind a load balancer, the neighborhood is
+the new instance, the load balancer it attaches to, the database it connects
+to, and its sibling instances — not the VPC's other 400 resources.
+
+The selection must be deterministic: the same model always yields the same
+neighborhood.
+
+### 5. Visualization
+
+Converts the neighborhood into:
+
+- a **before graph** — the neighborhood as it is,
+- an **after graph** — the neighborhood as it will be,
+- an ordered list of **animation events** that transform one into the other
+  (e.g. *node created*, *node destroyed*, *node replaced*, *node updated*,
+  *edge added*, *edge removed*).
+
+Graph construction and event generation belong in the backend, where they can
+be unit-tested. The frontend's job is rendering: it plays events it is given.
+Layout and rendering technology (SVG first; any library only once the real
+graph requirements are understood) are frontend concerns.
+
+### 6. AI Interpretation (future only)
+
+A possible later layer that explains *why a change matters* — for example,
+that replacing a database instance implies downtime.
+
+Rules for that layer, if it is ever built:
+
+- It consumes the Infrastructure Change Model's facts. It does not read raw
+  plan JSON and it does not produce facts.
+- AI is **never** the source of infrastructure truth. Every statement it makes
+  must be traceable to a deterministic fact from layers 1–5.
+- The product must be fully useful with this layer switched off.
+
+## Design constraints
+
+These shape decisions made now, even though the layers above do not exist yet.
+
+**A. Terraform is not the UI model.** The frontend receives DriftKing's Change
+Model, never raw Terraform JSON. Frontend components must not depend on
+Terraform's structure, so that changes in Terraform's format stay contained in
+the backend.
+
+**B. Terraform parsing belongs in the backend.** The frontend never parses
+plan JSON. There is exactly one parser, and it is tested in Python.
+
+**C. Animation is deterministic.** The same Change Model always produces the
+same logical animation: same events, same order. No randomness, no reliance on
+dictionary or set iteration order, no wall-clock input. This makes animations
+reproducible, snapshot-testable and debuggable.
+
+**D. Resource identity matters.** A resource present in both BEFORE and AFTER
+keeps one identity. `aws_instance.api[0]` whose attributes changed is the same
+object being *updated* — it must not appear to be destroyed and re-created.
+Terraform's full resource address (module path + type + name + index key) is
+the natural starting point for identity; a *replaced* resource keeps its
+identity while its underlying object is swapped.
+
+**E. Don't visualize the entire world by default.** Design around the change
+neighborhood, not full-estate rendering. Performance goals should target
+dozens of nodes, not thousands.
+
+**F. Facts before AI.** The deterministic layers must be able to state, on
+their own:
+
+- resource created
+- resource destroyed
+- resource updated
+- resource replaced
+- relationship changed
+
+before any AI is introduced. AI interprets those facts; it never replaces them.
+
+## Component responsibilities
+
+| Component   | Stack                                  | Owns                                          |
+| ----------- | -------------------------------------- | --------------------------------------------- |
+| `backend/`  | Python 3.12+, FastAPI, Pydantic        | Layers 1–5 (input → graphs and events)        |
+| `frontend/` | Next.js, TypeScript, React, Tailwind   | Rendering and playing back animation events   |
+| `fixtures/` | Real, scrubbed `terraform show -json`  | The ground truth that the pipeline is tested against |
 
 ## Deliberately absent
 
-No database, cache, message queue, authentication layer, cloud SDK, LLM
-integration, vector store or background worker is present. The plan JSON is
-self-contained and small enough to process in a request, so none of that is
-needed yet. Each will be added only when a concrete requirement forces it.
+No database, cache, message queue, authentication, user accounts, cloud SDK,
+GitHub integration, LLM integration or background worker. Plan JSON is
+self-contained and small enough to process within a single request. Each of
+those will be added only when a concrete requirement forces it.

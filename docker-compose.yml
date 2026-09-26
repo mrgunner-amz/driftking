@@ -1,12 +1,23 @@
+# Local development stack. Source is bind-mounted so both services reload
+# on change. Not intended for production use.
+
 services:
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
-    environment:
-      PYTHONUNBUFFERED: "1"
+      - ./backend/app:/app/app:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
   frontend:
     build: ./frontend
@@ -14,11 +25,10 @@ services:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-      # Keep the image's node_modules; the host bind mount would otherwise
-      # shadow them.
+      # Anonymous volumes keep the image's node_modules and the container's
+      # .next build cache from being shadowed by (or leaking into) the host.
       - /app/node_modules
+      - /app/.next
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      # Reliable file watching through bind mounts on macOS/Windows.
       WATCHPACK_POLLING: "true"
-    depends_on:
-      - backend

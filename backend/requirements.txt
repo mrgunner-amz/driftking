@@ -1,8 +1,4 @@
+# Runtime dependencies. This is all the Docker image installs.
 fastapi==0.141.1
 uvicorn[standard]==0.54.0
 pydantic==2.13.5
-
-# Test-only. Kept here to keep the scaffold to a single requirements file;
-# split into requirements-dev.txt once the dependency list grows.
-pytest==9.1.1
-httpx2==2.13.1  # transport for starlette's TestClient

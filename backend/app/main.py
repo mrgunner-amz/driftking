@@ -1,44 +1,42 @@
-"""DriftKing API.
+"""DriftKing API entry point.
 
-Minimal FastAPI application. Scaffolding only: the Terraform plan parsing,
-change model and graph layers are intentionally not implemented yet.
+Scaffolding only. The Terraform input, change interpretation and visualization
+layers described in ``docs/architecture.md`` are intentionally not implemented.
 """
 
+from typing import Literal
+
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from app import __version__
-
-# Development default. The frontend runs on :3000 both on the host and in
-# Docker Compose, so a single fixed list is enough for now.
-ALLOWED_ORIGINS: list[str] = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-
-app = FastAPI(
-    title="DriftKing API",
-    description="Visual Terraform drift and change explorer.",
-    version=__version__,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 class HealthResponse(BaseModel):
     """Liveness payload returned by ``GET /health``."""
 
-    status: str
+    status: Literal["ok"]
 
 
-@app.get("/health", response_model=HealthResponse, tags=["system"])
-async def health() -> HealthResponse:
-    """Report that the API process is up and serving requests."""
-    return HealthResponse(status="ok")
+def create_app() -> FastAPI:
+    """Build the FastAPI application.
+
+    A factory rather than a bare module-level object so that tests can build an
+    isolated instance, and so later layers can be wired in explicitly.
+    """
+    application = FastAPI(
+        title="DriftKing API",
+        description="A visual explorer for Terraform infrastructure changes and drift.",
+        version=__version__,
+    )
+
+    @application.get("/health", response_model=HealthResponse, tags=["system"])
+    async def health() -> HealthResponse:
+        """Report that the API process is up and serving requests."""
+        return HealthResponse(status="ok")
+
+    return application
+
+
+# ASGI entry point for ``uvicorn app.main:app``.
+app = create_app()

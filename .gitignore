@@ -1,4 +1,4 @@
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -6,25 +6,47 @@ __pycache__/
 venv/
 .pytest_cache/
 .mypy_cache/
+.dmypy.json
 .ruff_cache/
+.coverage
+htmlcov/
 
-# Node / Next.js
+# --- Node / Next.js ---
 node_modules/
 .next/
 out/
 next-env.d.ts
 *.tsbuildinfo
+npm-debug.log*
 
-# Environment
+# --- Docker ---
+# Personal compose overrides stay local.
+docker-compose.override.yml
+compose.override.yml
+
+# --- Environment / secrets ---
 .env
 .env.*
 !.env.example
 
-# Editors / OS
+# --- Terraform (if run locally against fixtures) ---
+# Binary plans and state can embed secrets; only scrubbed JSON under
+# fixtures/ should ever be committed.
+*.tfplan
+tfplan
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# --- macOS ---
 .DS_Store
+._*
+
+# --- IDEs / editors ---
 .idea/
 .vscode/
+*.swp
+*~
 
-# Logs
+# --- Logs ---
 *.log
-npm-debug.log*

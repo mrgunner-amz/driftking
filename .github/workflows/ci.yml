@@ -5,13 +5,20 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# CI calls the same Makefile targets contributors run locally, so the two
+# cannot drift apart.
+
 jobs:
   backend:
-    name: Backend tests
+    name: Backend (ruff, mypy, pytest)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -19,20 +26,22 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: make install-backend PYTHON=python
 
-      - name: Run tests
-        run: python -m pytest
+      - name: Lint and type-check
+        run: make backend-lint
+
+      - name: Test
+        run: make test
 
   frontend:
-    name: Frontend lint and typecheck
+    name: Frontend (eslint, tsc, build)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
 
@@ -43,15 +52,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: make install-frontend
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint and type-check
+        run: make frontend-lint
 
-      # Build first: it generates next-env.d.ts and .next/types, which the
-      # typecheck depends on.
       - name: Build
-        run: npm run build
-
-      - name: Typecheck
-        run: npm run typecheck
+        run: make frontend-build
