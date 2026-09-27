@@ -37,10 +37,10 @@ jobs:
         run: make backend-lint
 
       - name: Test
-        run: make test
+        run: make backend-test
 
   frontend:
-    name: Frontend (eslint, tsc, build)
+    name: Frontend (eslint, tsc, vitest, build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +56,9 @@ jobs:
 
       - name: Lint and type-check
         run: make frontend-lint
+
+      - name: Test
+        run: make frontend-test
 
       - name: Build
         run: make frontend-build

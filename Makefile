@@ -14,7 +14,8 @@ FRONTEND_STAMP := frontend/node_modules/.package-lock.json
 .DEFAULT_GOAL := help
 
 .PHONY: help dev down install install-backend install-frontend test lint format check \
-        backend frontend backend-lint frontend-lint frontend-build clean
+        backend frontend backend-lint frontend-lint frontend-build clean \
+        backend-test frontend-test fixtures
 
 help: ## Show this help
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) \
@@ -49,8 +50,16 @@ $(FRONTEND_STAMP): frontend/package.json frontend/package-lock.json
 
 # --- Quality ---------------------------------------------------------------
 
-test: $(BACKEND_STAMP) ## Run the backend test suite
+test: backend-test frontend-test ## Run the backend and frontend test suites
+
+backend-test: $(BACKEND_STAMP)
 	cd backend && $(BIN)/pytest
+
+frontend-test: $(FRONTEND_STAMP)
+	cd frontend && npm test
+
+fixtures: ## Regenerate fixtures/plans from real Terraform runs (needs terraform)
+	fixtures/terraform/generate.sh
 
 lint: backend-lint frontend-lint ## Run all linters and type checkers
 

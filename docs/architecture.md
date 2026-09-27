@@ -1,9 +1,9 @@
 # Architecture
 
-> **Status: planned.** Only the scaffolding (a FastAPI service with
-> `GET /health` and a static Next.js page) exists today. This document
-> describes the architecture we intend to build, so that early decisions stay
-> compatible with it. Nothing below is a claim about implemented behavior.
+> **Status: V1 vertical slice.** Layers 1–5 exist in a first, deliberately
+> small form: a plan-JSON parser, the Change Model, a one-hop neighborhood,
+> and a frontend that renders and animates BEFORE → AFTER. Layer 6 (AI) does
+> not exist. Sections below say what V1 does and where it stops.
 
 ## Overview
 
@@ -24,9 +24,11 @@ terraform show -json tfplan              (user's environment)
 │    Model                    │
 ├─────────────────────────────┤
 │ 4. Change Neighborhood      │  backend
-├─────────────────────────────┤
-│ 5. Visualization            │  backend: graphs + animation events
-│                             │  frontend: rendering
+└─────────────────────────────┘
+          │  JSON over HTTP (GET /api/fixtures/{name}, POST /api/plans)
+          ▼
+┌─────────────────────────────┐
+│ 5. Visualization            │  frontend: layout, BEFORE/AFTER, animation
 └─────────────────────────────┘
           ┆
 ┌─────────────────────────────┐
@@ -90,8 +92,25 @@ Expected responsibilities:
 - Respect sensitivity markers (`before_sensitive` / `after_sensitive`) so that
   sensitive values are never forwarded to the frontend.
 - Extract relationships from the plan's `configuration` section (references
-  and `depends_on`). How complete those relationships can be from plan JSON
-  alone is an open question for the next phase.
+  and `depends_on`, following `var.*` into module calls and module outputs
+  back to resources).
+
+**What V1 learned about relationships.** `prior_state` looks like it should
+describe the BEFORE graph, but it does not: Terraform records dependencies
+there as a *transitive closure*, and refreshes them against the *new*
+configuration during planning (in the fixture, `api[0]` "already" depends on
+a cache that does not exist yet). The plan does not contain the previous
+configuration at all. So V1 only claims what can be proven:
+
+| Edge                                        | Status    | Source                                   |
+| ------------------------------------------- | --------- | ---------------------------------------- |
+| an endpoint is created                      | `added`   | configuration                            |
+| an endpoint is destroyed                    | `removed` | configuration, or `prior_state` reduced to non-implied edges when the resource has no configuration left |
+| both endpoints exist before and after       | `present` | configuration; drawn on both sides, and the UI says it cannot be verified as old or new |
+
+References through `local.*` are not followed (Terraform does not export
+local values' expressions), so such dependencies are missing rather than
+guessed.
 
 ### 3. Infrastructure Change Model
 
@@ -112,8 +131,10 @@ Expected to represent:
 | Relationships     | Directed edges between resources, with their own before/after status |
 | Change metadata   | e.g. which attributes force replacement, sensitivity, drift vs. plan |
 
-**Not implemented yet.** The concrete schema will be designed in the next
-phase against real plan JSON, not guessed at here.
+V1's concrete schema is documented in [change-model.md](change-model.md).
+Rather than shipping raw before/after objects, each resource carries a list of
+changed leaf attributes, each side typed as `known`, `unknown`, `sensitive` or
+`absent`.
 
 ### 4. Change Neighborhood
 
@@ -135,20 +156,33 @@ to, and its sibling instances — not the VPC's other 400 resources.
 The selection must be deterministic: the same model always yields the same
 neighborhood.
 
+**V1:** changed resources plus every resource sharing an edge with one of
+them (one hop). Everything else is counted in `hidden_unchanged` and left out
+of the response.
+
 ### 5. Visualization
 
-Converts the neighborhood into:
+Owned by the frontend. The backend describes *what* changed; how that is
+shown and animated is a presentation decision, so no layout or animation
+instructions cross the API.
 
-- a **before graph** — the neighborhood as it is,
-- an **after graph** — the neighborhood as it will be,
-- an ordered list of **animation events** that transform one into the other
-  (e.g. *node created*, *node destroyed*, *node replaced*, *node updated*,
-  *edge added*, *edge removed*).
+V1 (`frontend/lib/layout.ts`, `frontend/components/ChangeGraph.tsx`):
 
-Graph construction and event generation belong in the backend, where they can
-be unit-tested. The frontend's job is rendering: it plays events it is given.
-Layout and rendering technology (SVG first; any library only once the real
-graph requirements are understood) are frontend concerns.
+- **One layout for both states.** A deterministic layered layout is computed
+  over the union of BEFORE and AFTER, dependents above dependencies. Each
+  resource gets one slot, so the transition transforms a single graph instead
+  of switching diagrams. Created resources grow into slots that are empty in
+  BEFORE; destroyed ones leave a labelled outline in AFTER.
+- **Animation vocabulary**, played in three stages (reversed when going back):
+  1. *destroy* — node fades and shrinks; its edges turn red and retract
+  2. *update* — node stays put, pulses once and turns amber;
+     *replace* — the old card lifts out and the new card settles into the
+     same slot (one resource, two states)
+  3. *create* — node grows in; new edges draw toward their target
+- The choreography is CSS transitions keyed on the SVG's `data-phase`, so the
+  same model always plays the same animation. `prefers-reduced-motion` turns
+  it into an instant switch.
+- Plain SVG. No graph or animation library was needed at this size.
 
 ### 6. AI Interpretation (future only)
 
@@ -165,7 +199,7 @@ Rules for that layer, if it is ever built:
 
 ## Design constraints
 
-These shape decisions made now, even though the layers above do not exist yet.
+These shaped the V1 implementation and remain binding.
 
 **A. Terraform is not the UI model.** The frontend receives DriftKing's Change
 Model, never raw Terraform JSON. Frontend components must not depend on
@@ -176,9 +210,10 @@ the backend.
 plan JSON. There is exactly one parser, and it is tested in Python.
 
 **C. Animation is deterministic.** The same Change Model always produces the
-same logical animation: same events, same order. No randomness, no reliance on
-dictionary or set iteration order, no wall-clock input. This makes animations
-reproducible, snapshot-testable and debuggable.
+same logical animation: same stages, same order. No randomness, no reliance on
+dictionary or set iteration order, no wall-clock input. The layout sorts by
+address before ordering, and the frontend tests assert that BEFORE and AFTER
+render identical markup apart from the phase.
 
 **D. Resource identity matters.** A resource present in both BEFORE and AFTER
 keeps one identity. `aws_instance.api[0]` whose attributes changed is the same
@@ -206,8 +241,8 @@ before any AI is introduced. AI interprets those facts; it never replaces them.
 
 | Component   | Stack                                  | Owns                                          |
 | ----------- | -------------------------------------- | --------------------------------------------- |
-| `backend/`  | Python 3.12+, FastAPI, Pydantic        | Layers 1–5 (input → graphs and events)        |
-| `frontend/` | Next.js, TypeScript, React, Tailwind   | Rendering and playing back animation events   |
+| `backend/`  | Python 3.12+, FastAPI, Pydantic        | Layers 1–4 (plan JSON → Change Model)         |
+| `frontend/` | Next.js, TypeScript, React, Tailwind   | Layer 5 (layout, BEFORE/AFTER, animation, summary) |
 | `fixtures/` | Real, scrubbed `terraform show -json`  | The ground truth that the pipeline is tested against |
 
 ## Deliberately absent

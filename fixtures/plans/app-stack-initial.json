@@ -1,0 +1,678 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.16.4",
+  "variables": {
+    "db_password": {
+      "value": "example-not-a-real-secret"
+    }
+  },
+  "planned_values": {
+    "root_module": {
+      "resources": [
+        {
+          "address": "terraform_data.api[0]",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "api",
+          "index": 0,
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "db_password": "example-not-a-real-secret",
+              "image": "api:1.4.0"
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {
+              "db_password": true
+            },
+            "output": {}
+          }
+        },
+        {
+          "address": "terraform_data.api[1]",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "api",
+          "index": 1,
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "db_password": "example-not-a-real-secret",
+              "image": "api:1.4.0"
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {
+              "db_password": true
+            },
+            "output": {}
+          }
+        },
+        {
+          "address": "terraform_data.audit_log_bucket",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "audit_log_bucket",
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "retention_days": 365
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {},
+            "output": {}
+          }
+        },
+        {
+          "address": "terraform_data.database",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "database",
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "engine": "postgres",
+              "engine_version": "15"
+            },
+            "store": null,
+            "triggers_replace": {
+              "engine_version": "15"
+            }
+          },
+          "sensitive_values": {
+            "input": {},
+            "output": {},
+            "triggers_replace": {}
+          }
+        },
+        {
+          "address": "terraform_data.legacy_worker",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "legacy_worker",
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "image": "worker:0.9.2"
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {},
+            "output": {}
+          }
+        },
+        {
+          "address": "terraform_data.load_balancer",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "load_balancer",
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "listener": "https:443",
+              "targets": [
+                null,
+                null
+              ]
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {
+              "targets": [
+                false,
+                false
+              ]
+            },
+            "output": {}
+          }
+        },
+        {
+          "address": "terraform_data.network",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "network",
+          "provider_name": "terraform.io/builtin/terraform",
+          "schema_version": 0,
+          "values": {
+            "input": {
+              "cidr": "10.0.0.0/16"
+            },
+            "store": null,
+            "triggers_replace": null
+          },
+          "sensitive_values": {
+            "input": {},
+            "output": {}
+          }
+        }
+      ],
+      "child_modules": [
+        {
+          "resources": [
+            {
+              "address": "module.monitoring.terraform_data.health_check",
+              "mode": "managed",
+              "type": "terraform_data",
+              "name": "health_check",
+              "provider_name": "terraform.io/builtin/terraform",
+              "schema_version": 0,
+              "values": {
+                "input": {
+                  "interval": "30s"
+                },
+                "store": null,
+                "triggers_replace": null
+              },
+              "sensitive_values": {
+                "input": {},
+                "output": {}
+              }
+            }
+          ],
+          "address": "module.monitoring"
+        }
+      ]
+    }
+  },
+  "resource_changes": [
+    {
+      "address": "terraform_data.api[0]",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "api",
+      "index": 0,
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "db_password": "example-not-a-real-secret",
+            "image": "api:1.4.0"
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "database_id": true
+          },
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {
+            "db_password": true
+          },
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.api[1]",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "api",
+      "index": 1,
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "db_password": "example-not-a-real-secret",
+            "image": "api:1.4.0"
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "database_id": true
+          },
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {
+            "db_password": true
+          },
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.audit_log_bucket",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "audit_log_bucket",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "retention_days": 365
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {},
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {},
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.database",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "database",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "engine": "postgres",
+            "engine_version": "15"
+          },
+          "store": null,
+          "triggers_replace": {
+            "engine_version": "15"
+          }
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "subnet": true
+          },
+          "output": true,
+          "triggers_replace": {}
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {},
+          "output": {},
+          "triggers_replace": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.legacy_worker",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "legacy_worker",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "image": "worker:0.9.2"
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "database_id": true
+          },
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {},
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.load_balancer",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "load_balancer",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "listener": "https:443",
+            "targets": [
+              null,
+              null
+            ]
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "targets": [
+              true,
+              true
+            ]
+          },
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {
+            "targets": [
+              false,
+              false
+            ]
+          },
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "terraform_data.network",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "network",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "cidr": "10.0.0.0/16"
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {},
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {},
+          "output": {}
+        }
+      }
+    },
+    {
+      "address": "module.monitoring.terraform_data.health_check",
+      "module_address": "module.monitoring",
+      "mode": "managed",
+      "type": "terraform_data",
+      "name": "health_check",
+      "provider_name": "terraform.io/builtin/terraform",
+      "change": {
+        "actions": [
+          "create"
+        ],
+        "before": null,
+        "after": {
+          "input": {
+            "interval": "30s"
+          },
+          "store": null,
+          "triggers_replace": null
+        },
+        "after_unknown": {
+          "id": true,
+          "input": {
+            "target": true
+          },
+          "output": true
+        },
+        "before_sensitive": false,
+        "after_sensitive": {
+          "input": {},
+          "output": {}
+        }
+      }
+    }
+  ],
+  "configuration": {
+    "provider_config": {
+      "terraform": {
+        "name": "terraform",
+        "full_name": "terraform.io/builtin/terraform"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "terraform_data.api",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "api",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "references": [
+                "terraform_data.database.id",
+                "terraform_data.database",
+                "var.db_password"
+              ]
+            }
+          },
+          "schema_version": 0,
+          "count_expression": {
+            "constant_value": 2
+          }
+        },
+        {
+          "address": "terraform_data.audit_log_bucket",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "audit_log_bucket",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "constant_value": {
+                "retention_days": 365
+              }
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "terraform_data.database",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "database",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "references": [
+                "terraform_data.network.output.cidr",
+                "terraform_data.network.output",
+                "terraform_data.network"
+              ]
+            },
+            "triggers_replace": {
+              "constant_value": {
+                "engine_version": "15"
+              }
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "terraform_data.legacy_worker",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "legacy_worker",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "references": [
+                "terraform_data.database.id",
+                "terraform_data.database"
+              ]
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "terraform_data.load_balancer",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "load_balancer",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "references": [
+                "terraform_data.api"
+              ]
+            }
+          },
+          "schema_version": 0
+        },
+        {
+          "address": "terraform_data.network",
+          "mode": "managed",
+          "type": "terraform_data",
+          "name": "network",
+          "provider_config_key": "terraform",
+          "expressions": {
+            "input": {
+              "constant_value": {
+                "cidr": "10.0.0.0/16"
+              }
+            }
+          },
+          "schema_version": 0
+        }
+      ],
+      "module_calls": {
+        "monitoring": {
+          "source": "../modules/monitoring",
+          "expressions": {
+            "target_id": {
+              "references": [
+                "terraform_data.load_balancer.id",
+                "terraform_data.load_balancer"
+              ]
+            }
+          },
+          "module": {
+            "outputs": {
+              "health_check_id": {
+                "expression": {
+                  "references": [
+                    "terraform_data.health_check.id",
+                    "terraform_data.health_check"
+                  ]
+                }
+              }
+            },
+            "resources": [
+              {
+                "address": "terraform_data.health_check",
+                "mode": "managed",
+                "type": "terraform_data",
+                "name": "health_check",
+                "provider_config_key": "terraform",
+                "expressions": {
+                  "input": {
+                    "references": [
+                      "var.target_id"
+                    ]
+                  }
+                },
+                "schema_version": 0
+              }
+            ],
+            "variables": {
+              "target_id": {
+                "description": "ID of the resource to health-check."
+              }
+            }
+          }
+        }
+      },
+      "variables": {
+        "db_password": {
+          "default": "example-not-a-real-secret",
+          "description": "Placeholder used to exercise sensitive-value handling. Not a real secret.",
+          "sensitive": true
+        }
+      }
+    }
+  },
+  "relevant_attributes": [
+    {
+      "resource": "terraform_data.api",
+      "attribute": []
+    },
+    {
+      "resource": "terraform_data.load_balancer",
+      "attribute": [
+        "id"
+      ]
+    },
+    {
+      "resource": "module.monitoring.terraform_data.health_check",
+      "attribute": [
+        "id"
+      ]
+    },
+    {
+      "resource": "terraform_data.database",
+      "attribute": [
+        "id"
+      ]
+    },
+    {
+      "resource": "terraform_data.network",
+      "attribute": [
+        "output"
+      ]
+    }
+  ],
+  "timestamp": "2026-09-27T10:58:03Z",
+  "applyable": true,
+  "complete": true,
+  "errored": false
+}

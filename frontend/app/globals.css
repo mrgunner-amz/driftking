@@ -1,1 +1,357 @@
 @import "tailwindcss";
+
+/* ------------------------------------------------------------------------
+ * Tokens. Dark by default (as the app has always been); light follows the
+ * OS preference. Action colors keep Terraform's conventions:
+ * + create green, ~ update amber, - destroy red; replace gets its own hue.
+ * --------------------------------------------------------------------- */
+
+:root {
+  color-scheme: dark;
+  --dk-canvas: #0b0d12;
+  --dk-panel: #11141b;
+  --dk-raised: #181c26;
+  --dk-line: #232836;
+  --dk-fg: #e7eaf0;
+  --dk-muted: #939bb0;
+  --dk-faint: #626a7e;
+  --dk-focus: #7aa2ff;
+  --dk-grid: #1a1e29;
+  --dk-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --dk-node-fill: #131722;
+  --dk-node-stroke: #2c3345;
+  --dk-edge: #3b4459;
+
+  --dk-create: #3ecf8e;
+  --dk-update: #f5b942;
+  --dk-delete: #f26d6d;
+  --dk-replace: #a98bfa;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --dk-canvas: #f6f7f9;
+    --dk-panel: #ffffff;
+    --dk-raised: #eef0f4;
+    --dk-line: #e1e4ea;
+    --dk-fg: #151922;
+    --dk-muted: #555e70;
+    --dk-faint: #7d8596;
+    --dk-focus: #3563e9;
+    --dk-grid: #e6e9ee;
+
+    --dk-node-fill: #ffffff;
+    --dk-node-stroke: #cfd4dd;
+    --dk-edge: #a3abba;
+
+    --dk-create: #0f9960;
+    --dk-update: #b7791f;
+    --dk-delete: #d63c3c;
+    --dk-replace: #7048e8;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--dk-canvas);
+  --color-panel: var(--dk-panel);
+  --color-raised: var(--dk-raised);
+  --color-line: var(--dk-line);
+  --color-fg: var(--dk-fg);
+  --color-muted: var(--dk-muted);
+  --color-faint: var(--dk-faint);
+  --color-focus: var(--dk-focus);
+  --color-edge: var(--dk-edge);
+  --color-node-stroke: var(--dk-node-stroke);
+  --color-create: var(--dk-create);
+  --color-update: var(--dk-update);
+  --color-delete: var(--dk-delete);
+  --color-replace: var(--dk-replace);
+}
+
+.dk-canvas {
+  background-color: var(--dk-canvas);
+  background-image: radial-gradient(var(--dk-grid) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+/* ------------------------------------------------------------------------
+ * Graph and transition choreography.
+ *
+ * The SVG carries data-phase="before" | "after". Each element's resting
+ * state per phase is declared below; CSS transitions animate between them.
+ * Going to AFTER plays in three stages, going back to BEFORE mirrors them:
+ *
+ *   1. removals   – destroyed nodes fade out, their edges retract
+ *   2. changes    – updated nodes change state, replaced nodes swap
+ *   3. additions  – created nodes grow in, new edges draw in
+ * --------------------------------------------------------------------- */
+
+.dk-graph {
+  --dk-duration: 460ms;
+  --dk-ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  --dk-stage-remove: 0ms;
+  --dk-stage-change: 520ms;
+  --dk-stage-add: 1040ms;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.dk-graph[data-phase="before"] {
+  --dk-stage-add: 0ms;
+  --dk-stage-change: 380ms;
+  --dk-stage-remove: 760ms;
+}
+
+.dk-instant,
+.dk-instant * {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* --- Nodes -------------------------------------------------------------- */
+
+.dk-node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity 180ms ease;
+}
+
+.dk-node.dk-dim {
+  opacity: 0.28;
+}
+
+.dk-node__body,
+.dk-card {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity var(--dk-duration) var(--dk-ease),
+    transform var(--dk-duration) var(--dk-ease);
+}
+
+.dk-card__frame {
+  fill: var(--dk-node-fill);
+  stroke: var(--dk-node-stroke);
+  stroke-width: 1.25;
+  transition: stroke var(--dk-duration) ease;
+}
+
+.dk-card__accent {
+  fill: var(--dk-node-stroke);
+  transition: fill var(--dk-duration) ease;
+}
+
+.dk-card__name {
+  fill: var(--dk-fg);
+  font-family: var(--dk-mono);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dk-module {
+  fill: var(--dk-faint);
+  font-family: var(--dk-mono);
+  font-size: 10px;
+}
+
+.dk-card__type {
+  fill: var(--dk-faint);
+  font-family: var(--dk-mono);
+  font-size: 10.5px;
+}
+
+.dk-node:hover .dk-card__frame,
+.dk-node:focus-visible .dk-card__frame {
+  stroke: var(--dk-muted);
+}
+
+.dk-selection {
+  fill: none;
+  stroke: var(--dk-focus);
+  stroke-width: 1.5;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.dk-node.dk-selected .dk-selection,
+.dk-node:focus-visible .dk-selection {
+  opacity: 1;
+}
+
+/* Action pill ("+ create"), hidden in BEFORE. */
+.dk-pill {
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.dk-pill rect {
+  fill: var(--dk-panel);
+  stroke-width: 1;
+}
+.dk-pill text {
+  font-family: var(--dk-mono);
+  font-size: 10px;
+  font-weight: 600;
+}
+.dk-graph[data-phase="after"] .dk-pill {
+  opacity: 1;
+}
+
+/* Per-action colors, applied as the node reaches its AFTER state. */
+.dk-node--create { --dk-action: var(--dk-create); --dk-stage: var(--dk-stage-add); }
+.dk-node--update { --dk-action: var(--dk-update); --dk-stage: var(--dk-stage-change); }
+.dk-node--replace { --dk-action: var(--dk-replace); --dk-stage: var(--dk-stage-change); }
+.dk-node--delete { --dk-action: var(--dk-delete); --dk-stage: var(--dk-stage-remove); }
+
+.dk-pill rect { stroke: var(--dk-action); }
+.dk-pill text { fill: var(--dk-action); }
+.dk-pill { transition-delay: calc(var(--dk-stage) + 200ms); }
+
+.dk-graph[data-phase="after"] .dk-node--update .dk-card__frame,
+.dk-graph[data-phase="after"] .dk-node--create .dk-card__frame,
+.dk-graph[data-phase="after"] .dk-node--replace .dk-card--new .dk-card__frame {
+  stroke: var(--dk-action);
+}
+.dk-graph[data-phase="after"] .dk-node--update .dk-card__accent,
+.dk-graph[data-phase="after"] .dk-node--create .dk-card__accent,
+.dk-graph[data-phase="after"] .dk-node--replace .dk-card--new .dk-card__accent {
+  fill: var(--dk-action);
+}
+.dk-card__frame,
+.dk-card__accent {
+  transition-delay: var(--dk-stage, 0ms);
+}
+
+/* CREATE: grows into its slot. */
+.dk-graph[data-phase="before"] .dk-node--create .dk-node__body {
+  opacity: 0;
+  transform: scale(0.72);
+}
+.dk-node--create .dk-node__body {
+  transition-delay: var(--dk-stage-add);
+}
+
+/* DELETE: fades and shrinks away, leaving a dashed outline in AFTER. */
+.dk-graph[data-phase="after"] .dk-node--delete .dk-node__body {
+  opacity: 0;
+  transform: scale(0.86);
+}
+.dk-graph[data-phase="after"] .dk-node--delete .dk-card__frame {
+  stroke: var(--dk-delete);
+}
+.dk-node--delete .dk-node__body {
+  transition-delay: calc(var(--dk-stage-remove) + 160ms);
+}
+.dk-ghost rect {
+  fill: none;
+  stroke: var(--dk-delete);
+  stroke-dasharray: 4 4;
+}
+.dk-ghost text {
+  fill: var(--dk-delete);
+  font-family: var(--dk-mono);
+  font-size: 12px;
+  text-decoration: line-through;
+}
+.dk-ghost {
+  opacity: 0;
+  transition: opacity 360ms ease;
+  transition-delay: var(--dk-stage-remove);
+}
+.dk-graph[data-phase="after"] .dk-ghost {
+  opacity: 0.45;
+  transition-delay: calc(var(--dk-stage-remove) + 420ms);
+}
+
+/* UPDATE: stays in place; frame shifts to amber with a single pulse. */
+.dk-pulse {
+  fill: none;
+  stroke: var(--dk-action);
+  stroke-width: 2;
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.dk-graph[data-phase="after"] .dk-pulse {
+  animation: dk-pulse 900ms ease-out var(--dk-stage-change) 1 both;
+}
+@keyframes dk-pulse {
+  0% { opacity: 0; transform: scale(1); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
+/* REPLACE: the old object lifts out, the new one settles in, same slot. */
+.dk-graph[data-phase="before"] .dk-card--new,
+.dk-graph[data-phase="after"] .dk-card--old {
+  opacity: 0;
+}
+.dk-graph[data-phase="before"] .dk-card--new { transform: translateY(12px); }
+.dk-graph[data-phase="after"] .dk-card--old { transform: translateY(-12px); }
+.dk-graph[data-phase="after"] .dk-card--old { transition-delay: var(--dk-stage-change); }
+.dk-graph[data-phase="after"] .dk-card--new { transition-delay: calc(var(--dk-stage-change) + 260ms); }
+.dk-graph[data-phase="before"] .dk-card--new { transition-delay: var(--dk-stage-change); }
+.dk-graph[data-phase="before"] .dk-card--old { transition-delay: calc(var(--dk-stage-change) + 260ms); }
+
+/* --- Edges -------------------------------------------------------------- */
+
+.dk-edge {
+  transition: opacity 180ms ease;
+}
+.dk-edge.dk-dim {
+  opacity: 0.15;
+}
+
+.dk-edge__line {
+  fill: none;
+  stroke: var(--dk-edge);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition:
+    stroke-dashoffset 560ms var(--dk-ease),
+    stroke 300ms ease,
+    opacity 300ms ease;
+}
+
+.dk-edge__head {
+  fill: none;
+  stroke: none;
+  transition: opacity 200ms ease;
+}
+
+.dk-arrowhead--neutral { fill: var(--dk-edge); }
+.dk-arrowhead--create { fill: var(--dk-create); }
+
+/* Added edges draw in after their created endpoint appears. */
+.dk-edge--added .dk-edge__line { stroke: var(--dk-create); }
+.dk-graph[data-phase="before"] .dk-edge--added .dk-edge__line { stroke-dashoffset: 1; opacity: 0; }
+.dk-graph[data-phase="before"] .dk-edge--added .dk-edge__head { opacity: 0; }
+.dk-graph[data-phase="after"] .dk-edge--added .dk-edge__line { transition-delay: calc(var(--dk-stage-add) + 220ms); }
+.dk-graph[data-phase="after"] .dk-edge--added .dk-edge__head { transition-delay: calc(var(--dk-stage-add) + 700ms); }
+
+/* Removed edges turn red and retract before their node fades. */
+.dk-graph[data-phase="after"] .dk-edge--removed .dk-edge__line {
+  stroke: var(--dk-delete);
+  stroke-dashoffset: -1;
+  opacity: 0;
+  transition-delay: var(--dk-stage-remove);
+}
+.dk-graph[data-phase="after"] .dk-edge--removed .dk-edge__head { opacity: 0; transition-delay: var(--dk-stage-remove); }
+.dk-graph[data-phase="before"] .dk-edge--removed .dk-edge__line,
+.dk-graph[data-phase="before"] .dk-edge--removed .dk-edge__head {
+  transition-delay: calc(var(--dk-stage-remove) + 200ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-graph *,
+  .dk-graph {
+    transition-duration: 1ms !important;
+    transition-delay: 0ms !important;
+    animation: none !important;
+  }
+}

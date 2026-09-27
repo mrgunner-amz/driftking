@@ -8,6 +8,10 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/app:/app/app:ro
+      # Bundled plan fixtures, served read-only by /api/fixtures.
+      - ./fixtures/plans:/fixtures:ro
+    environment:
+      DRIFTKING_FIXTURES_DIR: /fixtures
     healthcheck:
       test:
         - CMD
@@ -30,5 +34,10 @@ services:
       - /app/node_modules
       - /app/.next
     environment:
+      # The Next.js server proxies /api/* here (see frontend/next.config.ts).
+      DRIFTKING_API_URL: http://backend:8000
       # Reliable file watching through bind mounts on macOS/Windows.
       WATCHPACK_POLLING: "true"
+    depends_on:
+      backend:
+        condition: service_healthy
